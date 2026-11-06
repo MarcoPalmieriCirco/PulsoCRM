@@ -24,15 +24,10 @@
               '<span style="font-family:var(--font-display);font-weight:700;font-size:26px;color:var(--ink);">Iniciar sesión</span>' +
               '<span style="font-size:14px;color:var(--ink-faint);">Ingresá con tu cuenta de Pulso CRM.</span>' +
             '</div>' +
-            '<div class="form-field"><label>Email</label><input type="email" id="login-email" placeholder="nombre@pulsocrm.com" value="' + ui.escapeHtml(email || '') + '" required autofocus></div>' +
+            '<div class="form-field"><label>Email</label><input type="email" id="login-email" placeholder="nombre@gimnasio.com" value="' + ui.escapeHtml(email || '') + '" required autofocus></div>' +
             '<div class="form-field"><label>Contraseña</label><input type="password" id="login-password" placeholder="••••••••" required></div>' +
             (errorMsg ? '<div class="form-error">' + ui.escapeHtml(errorMsg) + '</div>' : '') +
             '<button type="submit" class="btn-primary" id="login-submit" style="justify-content:center;">Iniciar sesión</button>' +
-            '<div class="login-hint">Usuarios de demostración (contraseña <strong>pulso123</strong>):<br>' +
-              '<strong>admin@pulsocrm.com</strong> Administrador<br>' +
-              '<strong>responsable@pulsocrm.com</strong> Responsable comercial<br>' +
-              '<strong>vendedor@pulsocrm.com</strong> Vendedor' +
-            '</div>' +
           '</form>' +
         '</div>' +
       '</div>';

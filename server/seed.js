@@ -5,7 +5,11 @@ const db = require('./db');
 const { TABLAS, ORDEN_BORRADO } = require('./schema');
 const { hashPassword, newId } = require('./lib');
 
-const PASSWORD_DEMO = 'pulso123';
+// En local alcanza con una contraseña fija. Contra la base publicada debe venir de SEED_PASSWORD,
+// así un reset no vuelve a dejar una contraseña que figura en el repo.
+const urlBase = process.env.TURSO_DATABASE_URL || '';
+const esBaseLocal = !urlBase || urlBase.startsWith('file:');
+const PASSWORD_DEMO = process.env.SEED_PASSWORD || (esBaseLocal ? 'pulso123' : null);
 const DIA = 24 * 3600 * 1000;
 
 const haceDias = (n, hora = 11) => {
@@ -20,6 +24,9 @@ async function crearEsquema() {
 }
 
 async function cargarDatos() {
+  if (!PASSWORD_DEMO || PASSWORD_DEMO.length < 8) {
+    throw new Error('Definí SEED_PASSWORD en el .env, con al menos 8 caracteres, para cargar la base publicada.');
+  }
   const s = [];
   const add = (sql, args) => s.push({ sql, args });
 
@@ -214,7 +221,10 @@ async function ensureDatabase() {
 }
 
 async function main() {
-  if (process.argv.includes('--reset')) await borrarTodo();
+  if (process.argv.includes('--reset')) {
+    if (!PASSWORD_DEMO || PASSWORD_DEMO.length < 8) throw new Error('Definí SEED_PASSWORD en el .env, con al menos 8 caracteres, antes de restablecer la base publicada.');
+    await borrarTodo();
+  }
   const cargada = await ensureDatabase();
   console.log(cargada ? 'Datos de demostración cargados.' : 'La base ya tenía datos; no se modificó.');
 }

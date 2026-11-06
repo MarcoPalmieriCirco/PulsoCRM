@@ -24,19 +24,9 @@ Abrir http://localhost:8420. La base se crea y se carga sola en `data/pulso.db`.
 | `npm run seed` | Crea las tablas y carga la demo si la base está vacía |
 | `npm run seed:reset` | Borra todo y vuelve a cargar la demo |
 
-## Usuarios de demostración
+## Acceso
 
-Contraseña de todos: `pulso123`
-
-| Rol | Email |
-|---|---|
-| Administrador | `admin@pulsocrm.com` |
-| Responsable comercial | `responsable@pulsocrm.com` |
-| Vendedor | `vendedor@pulsocrm.com` |
-| Vendedor (segundo, para comparar carteras) | `vendedor2@pulsocrm.com` |
-| Vendedor inactivo (no puede ingresar) | `tomas.vera@pulsocrm.com` |
-
-Son credenciales públicas de demostración con datos ficticios: no usar datos reales con ellas.
+Las credenciales de la demo publicada se comparten solo dentro del grupo. En local, los usuarios y la contraseña se crean desde `server/seed.js`.
 
 ## Permisos
 
@@ -62,10 +52,13 @@ El frontend queda en GitHub Pages, sin cambios en su configuración. La API corr
    ```
    TURSO_DATABASE_URL=libsql://...
    TURSO_AUTH_TOKEN=...
+   SEED_PASSWORD=...
    ```
 
+   `SEED_PASSWORD` es la contraseña inicial de los usuarios en la base publicada. Restablecer la base la vuelve a aplicar.
+
 3. Cargar la base: `npm run seed:prod`
-4. Publicar la API: `npx vercel --prod`, definiendo las mismas dos variables en el proyecto de Vercel.
+4. Publicar la API: `npx vercel --prod`, definiendo `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN` en el proyecto de Vercel.
 5. Poner la URL de la API en `API_PRODUCCION`, en `js/config.js`.
 6. Mergear a `master`: GitHub Pages publica el frontend.
 
