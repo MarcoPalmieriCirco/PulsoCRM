@@ -1,81 +1,87 @@
-# Pulso CRM — Entrega 1
+# Pulso CRM
 
-CRM especializado para cadenas de gimnasios y centros de entrenamiento. Sitio
-estático (HTML + CSS + JavaScript, sin frameworks ni build step) con
-persistencia en `localStorage`.
+CRM especializado para gimnasios: interesados, socios, empresas con convenio, planes, sedes, oportunidades con embudo configurable, actividades realizadas e historial comercial, con permisos por rol validados en el servidor.
 
-## Cómo correrlo localmente
+- **Frontend:** HTML, CSS y JavaScript sin build, publicado en GitHub Pages.
+- **API:** Node.js + Express.
+- **Base de datos:** SQLite en local; Turso (compatible con SQLite) publicado.
 
-Los módulos usan `localStorage`, que algunos navegadores restringen al abrir
-un archivo directamente (`file://`). Lo más simple es levantar un servidor
-estático desde esta carpeta:
+## Levantarlo en local
+
+Requiere Node 20 o superior.
 
 ```bash
-python -m http.server 8420
+npm install
+npm start
 ```
 
-y abrir `http://localhost:8420/index.html`.
+Abrir http://localhost:8420. La base se crea y se carga sola en `data/pulso.db`.
 
-(También funciona con `npx serve` o cualquier servidor estático equivalente.)
+| Comando | Qué hace |
+|---|---|
+| `npm start` | Levanta API y frontend en el puerto 8420 |
+| `npm test` | Corre las pruebas de la API (reglas y permisos por rol) |
+| `npm run seed` | Crea las tablas y carga la demo si la base está vacía |
+| `npm run seed:reset` | Borra todo y vuelve a cargar la demo |
 
-## Usuario de prueba
+## Usuarios de demostración
 
-- Email: `cam@pulsocrm.com`
-- Contraseña: `pulso123`
+Contraseña de todos: `pulso123`
 
-(También existe `julian@pulsocrm.com` / `pulso123`.)
+| Rol | Email |
+|---|---|
+| Administrador | `admin@pulsocrm.com` |
+| Responsable comercial | `responsable@pulsocrm.com` |
+| Vendedor | `vendedor@pulsocrm.com` |
+| Vendedor (segundo, para comparar carteras) | `vendedor2@pulsocrm.com` |
+| Vendedor inactivo (no puede ingresar) | `tomas.vera@pulsocrm.com` |
 
-## Qué incluye esta entrega
+Son credenciales públicas de demostración con datos ficticios: no usar datos reales con ellas.
 
-- **Acceso**: login funcional contra usuarios precargados.
-- **Empresas y contactos**: alta, edición, listado, ficha de detalle y
-  relación contacto–empresa.
-- **Productos**: catálogo precargado (Pase Estándar, Atleta, Olímpico),
-  de solo lectura.
-- **Oportunidades**: alta, edición, relación con empresa o contacto,
-  responsable asignado, producto, listado y detalle.
-- **Embudo comercial**: tablero (drag & drop) y vista de lista, agrupadas
-  por etapa, con filtros por responsable/etapa/estado/origen. Los cambios de
-  etapa se guardan en `localStorage`.
+## Permisos
 
-Fuera de alcance en esta entrega (según `Entrega1.md`): gestión completa de
-roles y permisos, actividades e historial comercial, historial de cambios de
-etapa, configuraciones generales, cierre completo de oportunidades e
-inteligencia artificial.
+| Acción | Administrador | Responsable comercial | Vendedor |
+|---|---|---|---|
+| Ver clientes y oportunidades | Todo | Todo | Solo lo asignado |
+| Crear y editar clientes y oportunidades | Sí | Sí | Solo lo suyo |
+| Reasignar clientes y oportunidades | Sí | Sí | No |
+| Cambiar etapa, cerrar, registrar actividad | Sí | Sí | Solo lo suyo |
+| Reabrir o modificar una cerrada (con motivo, queda registrado) | Sí | Sí | No |
+| Dar de baja (baja lógica) | Sí | Sí | Solo lo suyo |
+| Eliminar un registro sin historial | Sí | No | No |
+| ABM de planes | Sí | Solo lectura | Solo lectura |
+| Usuarios y configuración | Sí | No | No |
+
+## Publicación (gratis)
+
+El frontend queda en GitHub Pages, sin cambios en su configuración. La API corre en [Vercel Hobby](https://vercel.com/docs/plans/hobby) y la base en [Turso](https://turso.tech/pricing), ambos sin costo ni tarjeta para este uso.
+
+1. Crear la base en Turso y copiar su URL (`libsql://...`) y un token.
+2. Crear un archivo `.env` (no se versiona):
+
+   ```
+   TURSO_DATABASE_URL=libsql://...
+   TURSO_AUTH_TOKEN=...
+   ```
+
+3. Cargar la base: `npm run seed:prod`
+4. Publicar la API: `npx vercel --prod`, definiendo las mismas dos variables en el proyecto de Vercel.
+5. Poner la URL de la API en `API_PRODUCCION`, en `js/config.js`.
+6. Mergear a `master`: GitHub Pages publica el frontend.
+
+Variable opcional de la API: `CORS_ORIGIN`, con los dominios autorizados separados por coma (por defecto, `https://marcopalmiericirco.github.io`).
 
 ## Estructura
 
 ```
-index.html              Login
-inicio.html              Dashboard / resumen
-oportunidades.html       Embudo comercial (tablero + lista)
-oportunidad-detalle.html Detalle y cambio de etapa
-clientes.html             Empresas y contactos (tabs)
-empresa-detalle.html
-contacto-detalle.html
-productos.html
-css/styles.css
-js/constants.js          Datos precargados (etapas, productos, orígenes…)
-js/db.js                 Persistencia en localStorage + datos semilla
-js/auth.js                Login / logout / guard de sesión
-js/ui.js                   Shell, modal, toast, formateadores
-js/opportunities.js        Reglas de cambio de etapa
-js/pages/*.js               Lógica de cada pantalla
+server.js            Entrada de la API en Vercel
+server/app.js        App Express y rutas
+server/auth.js       Sesiones y permisos por rol
+server/schema.js     Modelo de datos
+server/seed.js       Datos de demostración
+server/routes/       Usuarios, clientes, oportunidades, actividades, configuración
+server/test/         Pruebas de la API
+js/forms.js          Formularios y flujo de cambio de etapa compartidos
+js/pages/            Lógica de cada pantalla
+*.html               Una página por pantalla
 ```
-
-## Reiniciar los datos de la demo
-
-Los datos se precargan una sola vez. Para volver al estado inicial, borrar el
-`localStorage` del sitio (DevTools → Application → Local Storage) o correr en
-la consola del navegador:
-
-```js
-localStorage.clear();
-location.reload();
-```
-
-## Despliegue
-
-Al ser un sitio 100% estático, se puede desplegar arrastrando esta carpeta a
-[Vercel](https://vercel.com) o [Netlify](https://netlify.com) (no requiere
-build command ni variables de entorno).

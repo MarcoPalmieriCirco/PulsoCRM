@@ -1,188 +1,111 @@
-(function () {
+(async function () {
   const ui = Pulso.ui;
-  const db = Pulso.db;
-  const constants = Pulso.constants;
-  const oppLogic = Pulso.opportunities;
-  const user = Pulso.auth.requireAuth();
+  const forms = Pulso.forms;
+  const user = await Pulso.auth.requireAuth();
   if (!user) return;
+  const esc = ui.escapeHtml;
+  const id = new URLSearchParams(window.location.search).get('id');
+  let data = null;
+  let cat = null;
 
-  const params = new URLSearchParams(window.location.search);
-  const oppId = params.get('id');
+  async function load() {
+    try {
+      [data, cat] = await Promise.all([Pulso.api.get('/oportunidades/' + encodeURIComponent(id)), forms.catalogos()]);
+      render();
+    } catch (e) {
+      ui.renderPageError('oportunidades', user, e.message, 'oportunidades.html', 'Volver al listado');
+    }
+  }
+
+  function clienteLink(idCliente, nombre, puedeVer, pagina) {
+    if (!idCliente) return null;
+    return puedeVer ? '<a href="' + pagina + '?id=' + esc(idCliente) + '">' + esc(nombre) + '</a>' : esc(nombre);
+  }
 
   function render() {
-    const opp = oppId && db.findOportunidad(oppId);
-    const app = document.getElementById('app');
+    const o = data.oportunidad;
+    const p = data.permisos;
+    const empresa = clienteLink(o.empresa_id, o.empresa_nombre, data.ver_empresa, 'empresa-detalle.html');
+    const contacto = clienteLink(o.contacto_id, o.contacto_nombre, data.ver_contacto, 'contacto-detalle.html');
+    const cerrada = o.estado !== 'abierta';
 
-    if (!opp) {
-      app.innerHTML =
-        ui.renderShellStart('oportunidades', user) +
-        ui.renderTopbar({ hideSearch: true, actionsHtml: '' }) +
-        '<div class="content"><div class="empty-state">No se encontró la oportunidad. <a href="oportunidades.html">Volver al listado</a></div></div>' +
-        ui.renderShellEnd();
-      return;
-    }
+    const etapas = cat.etapas.filter((e) => e.activo || e.id === o.etapa_id);
+    const etapaOptions = etapas.map((e) => '<option value="' + esc(e.id) + '"' + (e.id === o.etapa_id ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('');
 
-    const entidadNombre = ui.entidadNombre(opp.entidadTipo, opp.entidadId);
-    const producto = constants.producto(opp.productoId);
-    const responsable = db.findUser(opp.responsableId);
-    const etapa = constants.etapa(opp.etapaKey);
-    const entidadHref = opp.entidadTipo === 'empresa' ? ('empresa-detalle.html?id=' + opp.entidadId) : ('contacto-detalle.html?id=' + opp.entidadId);
+    const cambioEtapa = p.cambiar_etapa
+      ? '<p class="text-faint" style="font-size:12px;margin:-6px 0 0;">' +
+          (cerrada ? 'Oportunidad cerrada: el cambio requiere indicar el motivo de la autorización y queda registrado.' : 'Cada cambio queda en el historial. Alta y Perdida piden los datos de cierre.') +
+        '</p>' +
+        ui.field('Nueva etapa', '<select id="f-etapa">' + etapaOptions + '</select>') +
+        ui.field('Observación', ui.textarea('f-observacion', '', 'Opcional')) +
+        '<div><button class="btn-primary" onclick="Pulso.pages.oportunidadDetalle.cambiarEtapa()">Guardar etapa</button></div>'
+      : '<div class="notice">Esta oportunidad está cerrada. Solo un administrador o responsable comercial puede autorizar cambios.</div>';
 
-    const estadoLabel = opp.estado === 'abierta' ? 'Abierta' : opp.estado === 'ganada' ? 'Ganada' : 'Perdida';
-
-    const etapaOptions = constants.ETAPAS.map((e) => '<option value="' + e.key + '"' + (e.key === opp.etapaKey ? ' selected' : '') + '>' + ui.escapeHtml(e.nombre) + '</option>').join('');
-
-    app.innerHTML =
+    document.getElementById('app').innerHTML =
       ui.renderShellStart('oportunidades', user) +
-      ui.renderTopbar({ hideSearch: true, actionsHtml: '<button class="btn-primary" onclick="Pulso.pages.oportunidadDetalle.openEditModal()">Editar</button>' }) +
+      ui.renderTopbar({
+        hideSearch: true,
+        actionsHtml:
+          '<button class="btn-ghost" onclick="Pulso.pages.oportunidadDetalle.nuevaActividad()">Registrar actividad</button>' +
+          (p.reasignar ? '<button class="btn-ghost" onclick="Pulso.pages.oportunidadDetalle.reasignar()">Reasignar</button>' : '') +
+          (p.editar ? '<button class="btn-primary" onclick="Pulso.pages.oportunidadDetalle.editar()">Editar</button>' : '')
+      }) +
       '<div class="content flex-col gap-16">' +
-        '<div class="breadcrumb"><a href="oportunidades.html">Oportunidades</a> / <span class="current">' + ui.escapeHtml(opp.titulo) + '</span></div>' +
+        '<div class="breadcrumb"><a href="oportunidades.html">Oportunidades</a> / <span class="current">' + esc(o.titulo) + '</span></div>' +
         '<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;">' +
-          '<div class="flex-col gap-12" style="gap:4px;">' +
-            '<span style="font-family:var(--font-display);font-weight:700;font-size:19px;color:var(--ink);">' + ui.escapeHtml(opp.titulo) + '</span>' +
-            '<span class="text-faint" style="font-size:13px;"><a href="' + entidadHref + '">' + ui.escapeHtml(entidadNombre) + '</a> · ' + (producto ? ui.escapeHtml(producto.nombre) : '—') + '</span>' +
-          '</div>' +
-          '<span class="badge ' + ui.estadoOppBadgeClass(opp.estado) + '">' + estadoLabel + '</span>' +
+          '<div class="flex-col" style="gap:4px;">' +
+            '<span style="font-family:var(--font-display);font-weight:700;font-size:19px;color:var(--ink);">' + esc(o.titulo) + '</span>' +
+            '<span class="text-faint" style="font-size:13px;">' + (empresa || contacto) + ' · ' + esc(o.plan_nombre) + ' · ' + esc(o.sede_nombre) + '</span>' +
+          '</div>' + ui.estadoOppBadge(o.estado) +
         '</div>' +
-        '<div class="flex gap-20" style="align-items:flex-start;flex-wrap:wrap;">' +
-          '<div class="panel" style="width:420px;flex:0 0 420px;">' +
-            '<span class="panel-title">Datos de la oportunidad</span>' +
-            '<div class="kv-row"><span class="k">Empresa / Contacto</span><span class="v"><a href="' + entidadHref + '">' + ui.escapeHtml(entidadNombre) + '</a></span></div>' +
-            '<div class="kv-row"><span class="k">Responsable</span><span class="v">' + (responsable ? ui.escapeHtml(responsable.nombre) : '—') + '</span></div>' +
-            '<div class="kv-row"><span class="k">Producto / servicio</span><span class="v">' + (producto ? ui.escapeHtml(producto.nombre) : '—') + '</span></div>' +
-            '<div class="kv-row"><span class="k">Valor</span><span class="v mono">' + ui.formatMoney(opp.valor) + ' /mes</span></div>' +
-            '<div class="kv-row"><span class="k">Etapa actual</span><span class="v">' + (etapa ? ui.escapeHtml(etapa.nombre) : opp.etapaKey) + '</span></div>' +
-            '<div class="kv-row"><span class="k">Origen</span><span class="v">' + ui.escapeHtml(opp.origen || '—') + '</span></div>' +
-            '<div class="kv-row"><span class="k">Fecha estimada de cierre</span><span class="v">' + ui.formatDate(opp.fechaEstimadaCierre) + '</span></div>' +
-            '<div class="kv-row"><span class="k">Fecha real de cierre</span><span class="v">' + ui.formatDate(opp.fechaRealCierre) + '</span></div>' +
-            (opp.estado === 'perdida' ? '<div class="kv-row"><span class="k">Motivo de pérdida</span><span class="v">' + ui.escapeHtml(opp.motivoPerdida || '—') + '</span></div>' : '') +
-            (opp.observaciones ? '<div class="flex-col" style="gap:5px;padding-top:6px;border-top:1px solid var(--line);"><span class="k">Observaciones</span><span class="v" style="text-align:left;line-height:1.5;">' + ui.escapeHtml(opp.observaciones) + '</span></div>' : '') +
-          '</div>' +
-          '<div class="panel flex-1" style="min-width:320px;">' +
-            '<span class="panel-title">Cambiar etapa</span>' +
-            '<p class="text-faint" style="font-size:12px;margin-top:-6px;">El cambio se guarda de inmediato y queda reflejado en el embudo comercial.</p>' +
-            '<div class="form-row" style="align-items:flex-end;">' +
-              '<div class="form-field"><label>Nueva etapa</label><select id="f-etapa">' + etapaOptions + '</select></div>' +
-              '<button class="btn-primary" style="flex:0 0 auto;" onclick="Pulso.pages.oportunidadDetalle.applyStageChange()">Guardar etapa</button>' +
+        '<div class="detail-grid">' +
+          '<div class="flex-col gap-16">' +
+            '<div class="panel">' +
+              '<span class="panel-title">Datos de la oportunidad</span>' +
+              (empresa ? ui.kv('Empresa', empresa) : '') +
+              (contacto ? ui.kv('Interesado o socio', contacto) : '') +
+              ui.kvText('Responsable comercial', o.responsable_nombre) +
+              ui.kvText('Plan', o.plan_nombre) +
+              ui.kvText('Sede', o.sede_nombre) +
+              ui.kvText('Socios', o.cantidad_socios) +
+              ui.kvText('Valor estimado', ui.formatMoney(o.valor_estimado)) +
+              (o.estado === 'ganada' ? ui.kvText('Valor final', ui.formatMoney(o.valor_final)) : '') +
+              ui.kvText('Etapa actual', o.etapa_nombre) +
+              ui.kvText('Estado', ui.estadoOppLabel(o.estado)) +
+              ui.kvText('Probabilidad de cierre', o.probabilidad === null ? '' : o.probabilidad + '%') +
+              ui.kvText('Origen', o.origen_nombre) +
+              ui.kvText('Fecha estimada de cierre', ui.formatDate(o.fecha_estimada_cierre)) +
+              ui.kvText('Fecha real de cierre', o.fecha_real_cierre ? ui.formatDate(o.fecha_real_cierre) : '') +
+              (o.estado === 'perdida' ? ui.kvText('Motivo de pérdida', o.motivo_nombre) : '') +
+              ui.observaciones(o.observaciones) +
             '</div>' +
+            '<div class="panel"><span class="panel-title">Registro de cambios</span>' + ui.auditList(data.auditoria) + '</div>' +
+          '</div>' +
+          '<div class="flex-col gap-16">' +
+            '<div class="panel"><span class="panel-title">Cambiar etapa</span>' + cambioEtapa + '</div>' +
+            '<div class="panel"><span class="panel-title">Historial de etapas</span>' + ui.stageHistory(data.historial) + '</div>' +
+            '<div class="panel"><span class="panel-title">Historial de actividades</span>' + ui.activityTimeline(data.actividades) + '</div>' +
           '</div>' +
         '</div>' +
       '</div>' +
       ui.renderShellEnd();
   }
 
-  function applyStageChange() {
-    const newKey = document.getElementById('f-etapa').value;
-    doMove(newKey);
-  }
+  const fail = (e) => ui.toast(e.message, true);
 
-  function doMove(newKey, opts) {
-    const result = oppLogic.move(oppId, newKey, opts);
-    if (result.ok) {
-      render();
-      ui.toast('Etapa actualizada a "' + constants.etapa(newKey).nombre + '". Guardado en la base de datos.');
-      return;
-    }
-    if (result.needsMotivo) {
-      ui.openModal(motivoModalHtml(newKey));
-      return;
-    }
-    if (result.needsConfirm) {
-      if (confirm('Esta oportunidad está cerrada. ¿Confirmás reabrirla en "' + constants.etapa(newKey).nombre + '"?')) {
-        doMove(newKey, { confirmed: true });
+  Pulso.pages.oportunidadDetalle = {
+    cambiarEtapa() {
+      const etapaId = ui.val('f-etapa');
+      if (etapaId === data.oportunidad.etapa_id) {
+        ui.toast('La oportunidad ya está en esa etapa.', true);
+        return;
       }
-    }
-  }
+      forms.changeStage(user, data.oportunidad, etapaId, { observacion: ui.val('f-observacion') }, load).catch(fail);
+    },
+    editar() { forms.openOportunidad(user, data.oportunidad, load).catch(fail); },
+    reasignar() { forms.openReasignar('oportunidades', data.oportunidad, load).catch(fail); },
+    nuevaActividad() { forms.openActividad({ oportunidad_id: id, label: data.oportunidad.titulo }, load).catch(fail); }
+  };
 
-  function motivoModalHtml(newKey) {
-    const opts = constants.MOTIVOS_PERDIDA.map((m) => '<option value="' + m + '">' + m + '</option>').join('');
-    return (
-      ui.modalHeader('Marcar oportunidad como perdida') +
-      '<p style="font-size:13px;color:var(--ink-soft);">Indicá el motivo de la pérdida para conservarlo en el registro de la oportunidad.</p>' +
-      '<div class="form-field"><label>Motivo de pérdida</label><select id="f-motivo">' + opts + '</select></div>' +
-      '<div class="modal-actions">' +
-        '<button class="btn-ghost" onclick="Pulso.ui.closeModal()">Cancelar</button>' +
-        '<button class="btn-primary" onclick="Pulso.pages.oportunidadDetalle.confirmMotivo(\'' + newKey + '\')">Confirmar</button>' +
-      '</div>'
-    );
-  }
-
-  function confirmMotivo(newKey) {
-    const motivo = document.getElementById('f-motivo').value;
-    ui.closeModal();
-    doMove(newKey, { motivo: motivo });
-  }
-
-  function editFormHtml() {
-    const opp = db.findOportunidad(oppId);
-    return (
-      ui.modalHeader('Editar oportunidad') +
-      '<div class="form-field"><label>Título</label><input type="text" id="f-titulo" value="' + ui.escapeHtml(opp.titulo) + '"></div>' +
-      '<div class="form-field"><label>Empresa o contacto</label><select id="f-entidad">' + ui.entidadOptionsHtml(opp.entidadTipo, opp.entidadId) + '</select></div>' +
-      '<div class="form-row">' +
-        '<div class="form-field"><label>Producto / servicio</label><select id="f-producto" onchange="Pulso.pages.oportunidadDetalle.onProductoChange(this.value)">' + ui.productoOptionsHtml(opp.productoId) + '</select></div>' +
-        '<div class="form-field"><label>Responsable</label><select id="f-responsable">' + ui.usuarioOptionsHtml(opp.responsableId) + '</select></div>' +
-      '</div>' +
-      '<div class="form-row">' +
-        '<div class="form-field"><label>Valor (según producto)</label><div class="form-static" id="f-valor-label">' + ui.formatMoney((constants.producto(opp.productoId) || {}).precio) + ' /mes</div></div>' +
-        '<div class="form-field"><label>Fecha estimada de cierre</label><input type="date" id="f-fecha" value="' + (opp.fechaEstimadaCierre || '') + '"></div>' +
-      '</div>' +
-      '<div class="form-field"><label>Origen</label><select id="f-origen">' + ui.origenOptionsHtml(opp.origen) + '</select></div>' +
-      '<div class="form-field"><label>Observaciones</label><textarea id="f-obs" rows="2">' + ui.escapeHtml(opp.observaciones || '') + '</textarea></div>' +
-      '<div id="f-error" class="form-error hidden"></div>' +
-      '<div class="modal-actions">' +
-        '<button class="btn-ghost" onclick="Pulso.ui.closeModal()">Cancelar</button>' +
-        '<button class="btn-primary" onclick="Pulso.pages.oportunidadDetalle.submitEdit()">Guardar cambios</button>' +
-      '</div>'
-    );
-  }
-
-  function onProductoChange(id) {
-    const p = constants.producto(id);
-    document.getElementById('f-valor-label').textContent = ui.formatMoney(p ? p.precio : 0) + ' /mes';
-  }
-
-  function submitEdit() {
-    const titulo = document.getElementById('f-titulo').value.trim();
-    const entidadVal = document.getElementById('f-entidad').value;
-    const productoId = document.getElementById('f-producto').value;
-    const responsableId = document.getElementById('f-responsable').value;
-    const fecha = document.getElementById('f-fecha').value;
-    const origen = document.getElementById('f-origen').value;
-    const obs = document.getElementById('f-obs').value.trim();
-    const errEl = document.getElementById('f-error');
-
-    if (!titulo || !entidadVal || !responsableId) {
-      errEl.textContent = 'Completá título, empresa o contacto, y responsable.';
-      errEl.classList.remove('hidden');
-      return;
-    }
-    const [entidadTipo, entidadId] = entidadVal.split(':');
-    const producto = constants.producto(productoId);
-
-    db.updateOportunidad(oppId, {
-      titulo: titulo,
-      entidadTipo: entidadTipo,
-      entidadId: entidadId,
-      productoId: productoId,
-      valor: producto ? producto.precio : 0,
-      responsableId: responsableId,
-      fechaEstimadaCierre: fecha || null,
-      origen: origen,
-      observaciones: obs
-    });
-
-    ui.closeModal();
-    render();
-    ui.toast('Cambios guardados.');
-  }
-
-  function openEditModal() {
-    ui.openModal(editFormHtml());
-  }
-
-  Pulso.pages = Pulso.pages || {};
-  Pulso.pages.oportunidadDetalle = { applyStageChange, confirmMotivo, openEditModal, onProductoChange, submitEdit };
-
-  render();
+  load();
 })();

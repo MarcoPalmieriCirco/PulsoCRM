@@ -1,0 +1,8 @@
+# En Vercel solo corre la API; el frontend se publica en GitHub Pages.
+docs
+data
+css
+js
+*.html
+*.md
+server/test
