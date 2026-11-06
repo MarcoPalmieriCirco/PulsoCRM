@@ -1,36 +1,31 @@
-// Autenticación simple: valida contra los usuarios precargados y guarda la
-// sesión en localStorage. La gestión completa de roles y permisos queda
-// fuera del alcance de esta entrega.
+// Sesión del usuario. La autorización real ocurre en el servidor: estos helpers
+// solo deciden qué botones mostrar.
 window.Pulso = window.Pulso || {};
 
 Pulso.auth = (function () {
-  const SESSION_KEY = 'pulso_session';
-
-  function login(email, password) {
-    const user = Pulso.db.findUserByEmail(email);
-    if (!user || user.password !== password) return null;
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.id }));
-    return user;
+  async function login(email, password) {
+    const data = await Pulso.api.post('/auth/login', { email: email, password: password });
+    Pulso.api.setToken(data.token);
+    return data.user;
   }
 
-  function logout() {
-    localStorage.removeItem(SESSION_KEY);
+  async function logout() {
+    try { await Pulso.api.post('/auth/logout'); } catch (e) { /* se cierra igual en este navegador */ }
+    Pulso.api.setToken(null);
     window.location.href = 'index.html';
   }
 
-  function currentUser() {
+  async function currentUser() {
+    if (!Pulso.api.getToken()) return null;
     try {
-      const raw = localStorage.getItem(SESSION_KEY);
-      if (!raw) return null;
-      const session = JSON.parse(raw);
-      return Pulso.db.findUser(session.userId);
+      return (await Pulso.api.get('/auth/me')).user;
     } catch (e) {
       return null;
     }
   }
 
-  function requireAuth() {
-    const user = currentUser();
+  async function requireAuth() {
+    const user = await currentUser();
     if (!user) {
       window.location.href = 'index.html';
       return null;
@@ -38,5 +33,9 @@ Pulso.auth = (function () {
     return user;
   }
 
-  return { login, logout, currentUser, requireAuth };
+  const isAdmin = (u) => u.rol === 'administrador';
+  const isVendedor = (u) => u.rol === 'vendedor';
+  const isSupervisor = (u) => u.rol === 'administrador' || u.rol === 'responsable';
+
+  return { login, logout, currentUser, requireAuth, isAdmin, isVendedor, isSupervisor };
 })();
