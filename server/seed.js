@@ -128,7 +128,7 @@ async function cargarDatos() {
         [newId(), id, previa, etapa, previa ? nombreEtapa[previa] : null, nombreEtapa[etapa], haceDias(dias, i === 0 ? 10 : 16), usuario || o.resp, obs || (i === 0 ? 'Creación de la oportunidad' : null)]);
     });
     add('INSERT INTO auditoria (id,entidad,entidad_id,accion,detalle,usuario_id,fecha_hora) VALUES (?,?,?,?,?,?,?)',
-      [newId(), 'oportunidad', id, 'Alta de oportunidad', o.titulo, o.resp, haceDias(o.recorrido[0][1], 10)]);
+      [newId(), 'oportunidad', id, 'Creación de la oportunidad', o.titulo, o.resp, haceDias(o.recorrido[0][1], 10)]);
     if (tipo !== 'abierta') {
       add('INSERT INTO auditoria (id,entidad,entidad_id,accion,detalle,usuario_id,fecha_hora) VALUES (?,?,?,?,?,?,?)',
         [newId(), 'oportunidad', id, 'Cierre', nombreEtapa[ultima[0]] + ' (' + fecha(ultima[1]) + ')', o.resp, haceDias(ultima[1], 16)]);

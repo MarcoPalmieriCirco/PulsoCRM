@@ -71,6 +71,12 @@ async function parseClientes(body, user, before) {
       if (contacto.estado === 'No contactar') throw conflict(contacto.nombre + ' ' + contacto.apellido + ' está marcado como No contactar: no se pueden crear oportunidades.');
     }
     if (empresa_id && contacto.empresa_id && contacto.empresa_id !== empresa_id) throw bad('El contacto pertenece a otra empresa.');
+    // Si la persona trabaja en una empresa, la negociación también figura en la ficha de esa empresa.
+    if (!empresa_id && contacto.empresa_id) {
+      const propia = await db.get('SELECT estado FROM empresas WHERE id = ?', [contacto.empresa_id]);
+      if (propia && propia.estado === 'No contactar' && !before) throw conflict('La empresa de este contacto está marcada como No contactar: no se pueden crear oportunidades.');
+      return { empresa_id: contacto.empresa_id, contacto_id };
+    }
   }
   return { empresa_id, contacto_id };
 }
@@ -149,7 +155,7 @@ router.post('/', async (req, res) => {
       args: [id, d.titulo, d.empresa_id, d.contacto_id, d.plan_id, d.sede_id, d.cantidad_socios, d.responsable_id, d.valor_estimado, etapa.id, d.probabilidad, d.fecha_estimada_cierre, d.origen_id, d.observaciones, req.user.id, now, now]
     },
     historialStmt(id, null, etapa, req.user, 'Creación de la oportunidad', now),
-    auditStmt(req.user, 'oportunidad', id, 'Alta de oportunidad', d.titulo)
+    auditStmt(req.user, 'oportunidad', id, 'Creación de la oportunidad', d.titulo)
   ]);
   res.status(201).json(await getOpp(id));
 });
